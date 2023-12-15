@@ -37,8 +37,7 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
   struct ether_header *eh = (struct ether_header *)sendbuf;
   struct sockaddr_ll socket_address;
   char ifName[IFNAMSIZ];
-  char Cadena[] = "Hola mi paquete será de 300 bytes, esta es basura, un poco más.";
-
+  char Cadena[] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   /*Coloca el nombre de la interface en ifName*/
   strcpy(ifName, interfaceName);
 
@@ -72,7 +71,7 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
   eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
   eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
   /*Direccion destino*/
-  
+
   ConvierteMAC(Mac, macString);
 
   eh->ether_dhost[0] = Mac[0];
@@ -83,8 +82,10 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
   eh->ether_dhost[5] = Mac[5];
 
   /* Rellenamos el paquete con basura*/
-  eh->ether_type = htons(strlen(Cadena)); /*Recordemos, va al protocolo o la longitud del paquete*/
+  eh->ether_type = htons(strlen(identificador) + strlen(Cadena)); /*Recordemos, va al protocolo o la longitud del paquete*/
   tx_len += sizeof(struct ether_header);
+  strcpy(sendbuf + tx_len, identificador);
+  tx_len = tx_len + strlen(identificador);
   strcpy(sendbuf + tx_len, Cadena);
   tx_len = tx_len + strlen(Cadena);
 

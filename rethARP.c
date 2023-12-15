@@ -1,6 +1,7 @@
 #include "eth.h"
 
 int listener(char *interfaceName);
+int hexToAscii(uint8_t *buf, int numbytes, int *combinedValue, char *asciiString);
 
 int main(int argc, char *argv[])
 {
@@ -11,7 +12,7 @@ int main(int argc, char *argv[])
     printf("reth INTERFACE-ENTRADA\n\n");
     exit(1);
   }
-  
+
   strcpy(ifName, argv[1]);
   listener(ifName);
 
@@ -31,6 +32,11 @@ int listener(char *interfaceName)
   struct ifreq if_idx;
   struct ifreq if_mac;
   char data_received[256];
+  int flag = 1;
+  int identificador = 12;
+
+  int combinedValue;
+
   strcpy(ifName, interfaceName);
   /*El encabezado del buffer en la estructura Ethernet*/
   struct ether_header *eh = (struct ether_header *)buf;
@@ -76,11 +82,45 @@ int listener(char *interfaceName)
       printf("Host Fuente: %02x:%02x:%02x:%02x:%02x:%02x\n",
              eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
              eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5]);
-      for (i = 0; i < numbytes; i++)
-        printf("%02x ", buf[i]);
+      // for (i = 0; i < numbytes; i++)
+      //   if (i > 13 && i < 16)
+      //     printf("%02x ", buf[i]);
+      // printf("\n");
+      char asciiString[sizeof(buf) - 2];
+      hexToAscii(buf, sizeof(buf), &combinedValue, asciiString);
+      printf("COMBINEDVALUE:%d\n", combinedValue);
+      if (identificador == combinedValue)
+      {
+        printf("SÍ ES PARA MI");
+      }
       printf("\n");
     }
-  } while (1);
+
+  } while (flag);
 
   close(sockfd);
+}
+
+int hexToAscii(uint8_t *buf, int numbytes, int *combinedValue, char *asciiString)
+{
+  // Verificamos que haya suficientes bytes en el búfer
+  if (numbytes < 17)
+  {
+    printf("Error: Búfer demasiado corto.\n");
+    return -1;
+  }
+
+  // Convertir los bytes 15 y 16 a un solo valor int
+  *combinedValue = (buf[14] - '0') * 10 + (buf[15] - '0');
+
+  // Construir el string ASCII con el resto de los bytes
+  int i;
+  for (i = 0; i < numbytes - 2; i++)
+  {
+    asciiString[i] = buf[i];
+  }
+
+  // Agregar el carácter nulo al final del string
+  asciiString[i] = '\0';
+  return 0;
 }
