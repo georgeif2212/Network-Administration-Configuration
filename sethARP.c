@@ -8,8 +8,27 @@ te va la mac
 estos son datos
 */
 
+int transmitter(char *interfaceName, char *macString, char *identificador);
+
 int main(int argc, char *argv[])
 {
+  char ifName[IFNAMSIZ], MiMAC[6];
+  char identificador[2];
+  char macString[16];
+  if (argc != 4)
+  {
+    printf("Error en argumentos.\n\n");
+    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) identificador\n\n");
+    exit(1);
+  }
+  transmitter(argv[1], argv[2], argv[3]);
+
+  return 0;
+}
+
+int transmitter(char *interfaceName, char *macString, char *identificador)
+{
+  printf("%s %s %s", interfaceName, macString, identificador);
   int sockfd;
   struct ifreq if_idx;
   struct ifreq if_mac;
@@ -19,18 +38,9 @@ int main(int argc, char *argv[])
   struct sockaddr_ll socket_address;
   char ifName[IFNAMSIZ];
   char Cadena[] = "Hola mi paquete será de 300 bytes, esta es basura, un poco más.";
-  char identificador[2];
 
-  if (argc != 4)
-  {
-    printf("Error en argumentos.\n\n");
-    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) identificador\n\n");
-    exit(1);
-  }
-  /*Coloca el identificador en ifName*/
-  strcpy(identificador, argv[3]);
   /*Coloca el nombre de la interface en ifName*/
-  strcpy(ifName, argv[1]);
+  strcpy(ifName, interfaceName);
 
   /*Abre el socket, notemos los parametros empleados*/
   if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
@@ -62,7 +72,9 @@ int main(int argc, char *argv[])
   eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
   eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
   /*Direccion destino*/
-  ConvierteMAC(Mac, argv[2]);
+  
+  ConvierteMAC(Mac, macString);
+
   eh->ether_dhost[0] = Mac[0];
   eh->ether_dhost[1] = Mac[1];
   eh->ether_dhost[2] = Mac[2];
@@ -86,16 +98,16 @@ int main(int argc, char *argv[])
   socket_address.sll_addr[5] = Mac[5];
 
   // Formatear la dirección MAC en un string
-  char macString[MAC_STRING_SIZE];
-  sprintf(macString, "%02x:%02x:%02x:%02x:%02x:%02x",
-          0xFF & if_mac.ifr_hwaddr.sa_data[0],
-          0xFF & if_mac.ifr_hwaddr.sa_data[1],
-          0xFF & if_mac.ifr_hwaddr.sa_data[2],
-          0xFF & if_mac.ifr_hwaddr.sa_data[3],
-          0xFF & if_mac.ifr_hwaddr.sa_data[4],
-          0xFF & if_mac.ifr_hwaddr.sa_data[5]);
+  // char macString[MAC_STRING_SIZE];
+  // sprintf(macString, "%02x:%02x:%02x:%02x:%02x:%02x",
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[0],
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[1],
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[2],
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[3],
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[4],
+  //         0xFF & if_mac.ifr_hwaddr.sa_data[5]);
 
-  printf("MAC: %s\n", macString);
+  // printf("MAC: %s\n", macString);
 
   /*Envio del paquete*/
   iLen = sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr *)&socket_address, sizeof(struct sockaddr_ll));
@@ -108,5 +120,4 @@ int main(int argc, char *argv[])
 
   /*Cerramos*/
   close(sockfd);
-  return 0;
 }
