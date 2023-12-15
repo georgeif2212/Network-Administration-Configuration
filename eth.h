@@ -35,7 +35,3 @@ void ConvierteMAC(char *Mac, char *Org)
     }
   }
 }
-
-void listener(){
-  
-}
