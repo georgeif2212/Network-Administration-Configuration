@@ -3,32 +3,37 @@
 
 /*
 códigos:
-dame tu mac
-te va la mac
+dame tu mac --- 10
+te va la mac --- 20
 estos son datos
 */
 
-int transmitter(char *interfaceName, char *macString, char *identificador);
+int transmitter(char *interfaceName, char *macString, char *code, char *identifier);
+int listener(char *interfaceName, int myIdentifier);
+int hexToAscii(uint8_t *buf, int numbytes, int *combinedValue, char *asciiString);
+int twoBytesToInt(uint8_t *buf, int byte1, int byte2);
+void obtenerDireccionMAC(uint8_t *buf, char *macDestino);
 
 int main(int argc, char *argv[])
 {
-  char ifName[IFNAMSIZ], MiMAC[6];
-  char identificador[2];
-  char macString[16];
   if (argc != 4)
   {
     printf("Error en argumentos.\n\n");
-    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) identificador\n\n");
+    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) code (Formato xx)\n\n");
     exit(1);
   }
-  transmitter(argv[1], argv[2], argv[3]);
+  int myIdentifier = 88;
+  char identifierString[2];
+  sprintf(identifierString, "%d", myIdentifier);
+  transmitter(argv[1], argv[2], argv[3], identifierString);
+  listener(argv[1], myIdentifier);
 
   return 0;
 }
 
-int transmitter(char *interfaceName, char *macString, char *identificador)
+int transmitter(char *interfaceName, char *macString, char *code, char *identifier)
 {
-  printf("%s %s %s", interfaceName, macString, identificador);
+  // printf("%s %s %s %s", interfaceName, macString, code, identifier);
   int sockfd;
   struct ifreq if_idx;
   struct ifreq if_mac;
@@ -39,21 +44,20 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
   char ifName[IFNAMSIZ];
   char Cadena[] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   /*Coloca el nombre de la interface en ifName*/
-  strcpy(ifName, interfaceName);
 
   /*Abre el socket, notemos los parametros empleados*/
   if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
     perror("socket");
 
   /* Mediante el nombre de la interface, se obtiene su indice */
-  memset(&if_idx, 0, sizeof(struct ifreq));       /*Llena de ceros el bloque de if_idx*/
-  strncpy(if_idx.ifr_name, ifName, IFNAMSIZ - 1); /*Copia el nombre de la interfaz*/
+  memset(&if_idx, 0, sizeof(struct ifreq));              /*Llena de ceros el bloque de if_idx*/
+  strncpy(if_idx.ifr_name, interfaceName, IFNAMSIZ - 1); /*Copia el nombre de la interfaz*/
   if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0)
     perror("SIOCGIFINDEX"); /*Toma el control del driver*/
 
   /*Ahora obtenemos la MAC de la interface por donde saldran los datos */
   memset(&if_mac, 0, sizeof(struct ifreq));
-  strncpy(if_mac.ifr_name, ifName, IFNAMSIZ - 1);
+  strncpy(if_mac.ifr_name, interfaceName, IFNAMSIZ - 1);
   if (ioctl(sockfd, SIOCGIFHWADDR, &if_mac) < 0)
     perror("SIOCGIFHWADDR");
   /*Se imprime la MAC del host*/
@@ -81,11 +85,23 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
   eh->ether_dhost[4] = Mac[4];
   eh->ether_dhost[5] = Mac[5];
 
-  /* Rellenamos el paquete con basura*/
-  eh->ether_type = htons(strlen(identificador) + strlen(Cadena)); /*Recordemos, va al protocolo o la longitud del paquete*/
+  char miMACString[MAC_STRING_SIZE];
+  sprintf(miMACString, "%02x%02x%02x%02x%02x%02x",
+          0xFF & if_mac.ifr_hwaddr.sa_data[0],
+          0xFF & if_mac.ifr_hwaddr.sa_data[1],
+          0xFF & if_mac.ifr_hwaddr.sa_data[2],
+          0xFF & if_mac.ifr_hwaddr.sa_data[3],
+          0xFF & if_mac.ifr_hwaddr.sa_data[4],
+          0xFF & if_mac.ifr_hwaddr.sa_data[5]);
+
+  eh->ether_type = htons(strlen(code) + strlen(identifier) + strlen(miMACString) + strlen(Cadena));
   tx_len += sizeof(struct ether_header);
-  strcpy(sendbuf + tx_len, identificador);
-  tx_len = tx_len + strlen(identificador);
+  strcpy(sendbuf + tx_len, code);
+  tx_len = tx_len + strlen(code);
+  strcpy(sendbuf + tx_len, identifier);
+  tx_len = tx_len + strlen(identifier);
+  strcpy(sendbuf + tx_len, miMACString);
+  tx_len = tx_len + strlen(miMACString);
   strcpy(sendbuf + tx_len, Cadena);
   tx_len = tx_len + strlen(Cadena);
 
@@ -121,4 +137,130 @@ int transmitter(char *interfaceName, char *macString, char *identificador)
 
   /*Cerramos*/
   close(sockfd);
+}
+
+int listener(char *interfaceName, int myIdentifier)
+{
+  int sockfd, i;
+  ssize_t numbytes;
+  struct ifreq ifopts;
+  struct ifreq if_ip;
+  uint8_t buf[BUF_SIZ];
+  char ifName[IFNAMSIZ], MiMAC[6];
+  int saddr_size;
+  struct sockaddr saddr;
+  struct ifreq if_idx;
+  struct ifreq if_mac;
+  char data_received[256];
+  int flag = 1;
+  int code;
+
+  int combinedValue;
+  strcpy(ifName, interfaceName);
+  /*El encabezado del buffer en la estructura Ethernet*/
+  struct ether_header *eh = (struct ether_header *)buf;
+
+  memset(&if_ip, 0, sizeof(struct ifreq)); /*Llenamos de ceros*/
+
+  /* Se abre el socket para "escuchar" los ETHER_TYPE */
+  if ((sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
+  {
+    perror("Listener: socket");
+    return -1;
+  }
+
+  /* Mediante el nombre de la interface, se obtiene su indice */
+  memset(&if_idx, 0, sizeof(struct ifreq));       /*Llena de ceros el bloque de if_idx*/
+  strncpy(if_idx.ifr_name, ifName, IFNAMSIZ - 1); /*Copia el nombre de la interfaz*/
+  if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0)
+    perror("SIOCGIFINDEX"); /*Toma el control del driver*/
+
+  /*Ahora obtenemos la MAC de la interface por donde saldran los datos */
+  memset(&if_mac, 0, sizeof(struct ifreq));
+  strncpy(if_mac.ifr_name, ifName, IFNAMSIZ - 1);
+  if (ioctl(sockfd, SIOCGIFHWADDR, &if_mac) < 0)
+    perror("SIOCGIFHWADDR");
+  /*Se imprime la MAC del host*/
+  for (i = 0; i < (IFNAMSIZ - 1); i++)
+    MiMAC[i] = 0xFF & if_mac.ifr_hwaddr.sa_data[i];
+  printf("Direccion MAC de la interfaz de entrada: %d, MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", 0xFF & if_idx.ifr_ifindex,
+         MiMAC[0], MiMAC[1], MiMAC[2], MiMAC[3], MiMAC[4], MiMAC[5]);
+
+  do
+  {
+    saddr_size = sizeof saddr;
+    /*Estamos escuchando por todas las interfaces del host*/
+    numbytes = recvfrom(sockfd, buf, 65536, 0, &saddr, (socklen_t *)&saddr_size);
+    int x = twoBytesToInt(buf, 16, 17);
+    if (numbytes == 93 && myIdentifier == x)
+    {
+      int code = twoBytesToInt(buf, 14, 15);
+      if (code == 10)
+      {
+        printf("QUIEREN SABER MI MAC\n");
+      }
+      else if (code == 20)
+      {
+        printf("RECIBÍ MAC\n");
+      }
+
+      // // char asciiString[sizeof(buf) - 2];
+      // // hexToAscii(buf, sizeof(buf), &code, asciiString);
+      // printf("Llego paquete de %ld bytes: \n", numbytes);
+      // printf("Host Destino: %02x:%02x:%02x:%02x:%02x:%02x\n",
+      //        eh->ether_dhost[0], eh->ether_dhost[1], eh->ether_dhost[2],
+      //        eh->ether_dhost[3], eh->ether_dhost[4], eh->ether_dhost[5]);
+      // printf("Host Fuente: %02x:%02x:%02x:%02x:%02x:%02x\n",
+      //        eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
+      //        eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5]);
+
+      // for (i = 0; i < numbytes; i++)
+      //   printf("%02x ", buf[i]);
+
+      flag = 0;
+    }
+
+  } while (flag);
+
+  close(sockfd);
+}
+
+int hexToAscii(uint8_t *buf, int numbytes, int *combinedValue, char *asciiString)
+{
+  // Verificamos que haya suficientes bytes en el búfer
+  if (numbytes < 17)
+  {
+    printf("Error: Búfer demasiado corto.\n");
+    return -1;
+  }
+
+  // Convertir los bytes 15 y 16 a un solo valor int
+  *combinedValue = (buf[14] - '0') * 10 + (buf[15] - '0');
+
+  // Construir el string ASCII con el resto de los bytes
+  int i;
+  for (i = 0; i < numbytes - 2; i++)
+  {
+    asciiString[i] = buf[i];
+  }
+
+  // Agregar el carácter nulo al final del string
+  asciiString[i] = '\0';
+  return 0;
+}
+
+int twoBytesToInt(uint8_t *buf, int byte1, int byte2)
+{
+  return (buf[byte1] - '0') * 10 + (buf[byte2] - '0');
+}
+
+void obtenerDireccionMAC(uint8_t *buf, char *macDestino)
+{
+  // Apuntamos a los primeros 18 bytes (19-30)
+  buf += 18;
+
+  // Convertimos los siguientes 12 bytes en formato ASCII a una cadena
+  sprintf(macDestino, "%c%c%c%c%c%c%c%c%c%c%c%c",
+          buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+          buf[6], buf[7], buf[8], buf[9], buf[10], buf[11]);
 }
