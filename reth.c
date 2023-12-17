@@ -63,7 +63,7 @@
                 eh->ether_shost[0], eh->ether_shost[1], eh->ether_shost[2],
                 eh->ether_shost[3], eh->ether_shost[4], eh->ether_shost[5]);                
        for (i=0; i<numbytes; i++) printf("%02x ", buf[i]);
-       printf("\n");                
+       printf("\n");
      }
    } while (1);
 

@@ -16,6 +16,14 @@
 #define MI_PROTOCOLO 47
 #define MAC_STRING_SIZE 18
 
+int twoBytesToInt(uint8_t *buf, int byte1, int byte2);
+int listener(char *interfaceName, int myIdentifier);
+void ConvierteMAC(char *Mac, char *Org);
+void obtenerDireccionMAC(uint8_t *buf, char *macDestino);
+int transmitter(char *interfaceName, char *macStringDestino, char *code, char *identifierDestino, int myIdentifier);
+int listener(char *interfaceName, int myIdentifier);
+int hexToAscii(uint8_t *buf, int numbytes, int *combinedValue, char *asciiString);
+
 int twoBytesToInt(uint8_t *buf, int byte1, int byte2)
 {
   return (buf[byte1] - '0') * 10 + (buf[byte2] - '0');
@@ -52,7 +60,7 @@ void obtenerDireccionMAC(uint8_t *buf, char *macDestino)
           buf[6], buf[7], buf[8], buf[9], buf[10], buf[11]);
 }
 
-int transmitter(char *interfaceName, char *macStringDestino, char *code, char *identifier)
+int transmitter(char *interfaceName, char *macStringDestino, char *code, char *identifierDestino, int myIdentifier)
 {
   int sockfd;
   struct ifreq if_idx;
@@ -115,13 +123,14 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
 
   if (strcmp(code, "10") == 0)
   {
+    printf("Paquete ARP para saber MAC del nodo con identificador: %s\n", identifierDestino);
     char Cadena[] = "Quiero saber tu MAC";
-    eh->ether_type = htons(strlen(code) + strlen(identifier) + strlen(miMACString) + strlen(Cadena));
+    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
     tx_len = tx_len + strlen(code);
-    strcpy(sendbuf + tx_len, identifier);
-    tx_len = tx_len + strlen(identifier);
+    strcpy(sendbuf + tx_len, identifierDestino);
+    tx_len = tx_len + strlen(identifierDestino);
     strcpy(sendbuf + tx_len, miMACString);
     tx_len = tx_len + strlen(miMACString);
     strcpy(sendbuf + tx_len, Cadena);
@@ -129,15 +138,29 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   }
   else if (strcmp(code, "20") == 0)
   {
+    printf("Paquete ARP para para decirle al nodo con MAC:%s, mi MAC\n", macStringDestino);
     char Cadena[] = "Aquí va mi MAC";
-    eh->ether_type = htons(strlen(code) + strlen(identifier) + strlen(miMACString) + strlen(Cadena));
+    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
     tx_len = tx_len + strlen(code);
-    strcpy(sendbuf + tx_len, identifier);
-    tx_len = tx_len + strlen(identifier);
+    strcpy(sendbuf + tx_len, identifierDestino);
+    tx_len = tx_len + strlen(identifierDestino);
     strcpy(sendbuf + tx_len, miMACString);
     tx_len = tx_len + strlen(miMACString);
+    strcpy(sendbuf + tx_len, Cadena);
+    tx_len = tx_len + strlen(Cadena);
+  }
+  else
+  {
+    printf("Este es un mensaje cualquiera\n");
+    char Cadena[] = "Este es un mensaje cualquiera";
+    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(Cadena));
+    tx_len += sizeof(struct ether_header);
+    strcpy(sendbuf + tx_len, code);
+    tx_len = tx_len + strlen(code);
+    strcpy(sendbuf + tx_len, identifierDestino);
+    tx_len = tx_len + strlen(identifierDestino);
     strcpy(sendbuf + tx_len, Cadena);
     tx_len = tx_len + strlen(Cadena);
   }
@@ -151,18 +174,6 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   socket_address.sll_addr[4] = Mac[4];
   socket_address.sll_addr[5] = Mac[5];
 
-  // Formatear la dirección MAC en un string
-  // char macString[MAC_STRING_SIZE];
-  // sprintf(macString, "%02x:%02x:%02x:%02x:%02x:%02x",
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[0],
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[1],
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[2],
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[3],
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[4],
-  //         0xFF & if_mac.ifr_hwaddr.sa_data[5]);
-
-  // printf("MAC: %s\n", macString);
-
   /*Envio del paquete*/
   iLen = sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr *)&socket_address, sizeof(struct sockaddr_ll));
   if (iLen < 0)
@@ -170,10 +181,15 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   printf("Se ha enviado un paquete de %x bytes de payload...\n", eh->ether_type);
   for (i = 0; i < iLen; i++)
     printf("%02x ", sendbuf[i]);
-  printf("\n");
+  printf("\n\n\n");
 
   /*Cerramos*/
   close(sockfd);
+  // * Si el código es 10 quiere decir que pidió MAC por lo que hay que escuchar
+  if (strcmp(code, "10") == 0)
+  {
+    listener(interfaceName, myIdentifier);
+  }
 }
 
 int listener(char *interfaceName, int myIdentifier)
@@ -228,26 +244,32 @@ int listener(char *interfaceName, int myIdentifier)
     /*Estamos escuchando por todas las interfaces del host*/
     numbytes = recvfrom(sockfd, buf, 65536, 0, &saddr, (socklen_t *)&saddr_size);
     int x = twoBytesToInt(buf, 16, 17);
-    if ((numbytes == 49 && myIdentifier == x) || numbytes == 45 && myIdentifier == x)
+    if ((numbytes == 49 && myIdentifier == x) || (numbytes == 45 && myIdentifier == x) || (numbytes == 47 && myIdentifier == x))
     {
       int code = twoBytesToInt(buf, 14, 15);
       if (code == 10)
       {
-        printf("QUIEREN SABER MI MAC\n");
         char macDestinationFromBuf[MAC_STRING_SIZE];
         obtenerDireccionMAC(buf, macDestinationFromBuf);
+        printf("QUIEREN SABER MI MAC\nENVIARE MI MAC A: %s\n\n", macDestinationFromBuf);
         sleep(1);
-        transmitter(interfaceName, macDestinationFromBuf, "20", "88");
+        transmitter(interfaceName, macDestinationFromBuf, "20", "88", myIdentifier);
       }
       else if (code == 20)
       {
         printf("RECIBÍ MAC\n");
         char macDestinationFromBuf[MAC_STRING_SIZE];
         obtenerDireccionMAC(buf, macDestinationFromBuf);
-        printf("YA SÉ TU MAC, ES: %s", macDestinationFromBuf);
+        printf("YA SÉ TU MAC, ES: %s\n", macDestinationFromBuf);
+        flag = 0;
       }
-
-      flag = 0;
+      else
+      {
+        printf("RECIBÍ MENSAJE CUALQUIERA\n");
+        for (i = 0; i < numbytes; i++)
+          printf("%02x ", buf[i]);
+        printf("\n");
+      }
     }
 
   } while (flag);

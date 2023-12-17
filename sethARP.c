@@ -24,8 +24,7 @@ int main(int argc, char *argv[])
   int myIdentifier = 88;
   char myIdentifierString[2];
   sprintf(myIdentifierString, "%d", myIdentifier);
-  transmitter(argv[1], argv[2], argv[3], argv[4]);
-  listener(argv[1], myIdentifier);
+  transmitter(argv[1], argv[2], argv[3], argv[4], myIdentifier);
 
   return 0;
 }
