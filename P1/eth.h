@@ -52,7 +52,7 @@ void ConvierteMAC(char *Mac, char *Org)
 
 void obtenerDireccionMAC(uint8_t *buf, char *macDestino)
 {
-  buf += 18;
+  buf += 20;
 
   // Convertimos los siguientes 12 bytes en formato ASCII a una cadena
   sprintf(macDestino, "%c%c%c%c%c%c%c%c%c%c%c%c",
@@ -70,6 +70,8 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   struct ether_header *eh = (struct ether_header *)sendbuf;
   struct sockaddr_ll socket_address;
   char ifName[IFNAMSIZ];
+  char myIdentifierString[10];
+  sprintf(myIdentifierString, "%d", myIdentifier);
   /*Coloca el nombre de la interface en ifName*/
 
   /*Abre el socket, notemos los parametros empleados*/
@@ -125,12 +127,14 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   {
     printf("Paquete ARP para saber MAC del nodo con identificador: %s\n", identifierDestino);
     char Cadena[] = "Quiero saber tu MAC";
-    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(miMACString) + strlen(Cadena));
+    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(myIdentifierString) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
     tx_len = tx_len + strlen(code);
     strcpy(sendbuf + tx_len, identifierDestino);
     tx_len = tx_len + strlen(identifierDestino);
+    strcpy(sendbuf + tx_len, myIdentifierString);
+    tx_len = tx_len + strlen(myIdentifierString);
     strcpy(sendbuf + tx_len, miMACString);
     tx_len = tx_len + strlen(miMACString);
     strcpy(sendbuf + tx_len, Cadena);
@@ -140,12 +144,14 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   {
     printf("Paquete ARP para para decirle al nodo con MAC:%s, mi MAC\n", macStringDestino);
     char Cadena[] = "Aquí va mi MAC";
-    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(miMACString) + strlen(Cadena));
+    eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(myIdentifierString) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
     tx_len = tx_len + strlen(code);
     strcpy(sendbuf + tx_len, identifierDestino);
     tx_len = tx_len + strlen(identifierDestino);
+    strcpy(sendbuf + tx_len, myIdentifierString);
+    tx_len = tx_len + strlen(myIdentifierString);
     strcpy(sendbuf + tx_len, miMACString);
     tx_len = tx_len + strlen(miMACString);
     strcpy(sendbuf + tx_len, Cadena);
@@ -243,8 +249,8 @@ int listener(char *interfaceName, int myIdentifier)
     saddr_size = sizeof saddr;
     /*Estamos escuchando por todas las interfaces del host*/
     numbytes = recvfrom(sockfd, buf, 65536, 0, &saddr, (socklen_t *)&saddr_size);
-    int x = twoBytesToInt(buf, 16, 17);
-    if ((numbytes == 49 && myIdentifier == x) || (numbytes == 45 && myIdentifier == x) || (numbytes == 47 && myIdentifier == x))
+    int myIdentifierBUF = twoBytesToInt(buf, 16, 17);
+    if ((numbytes == 51 && myIdentifier == myIdentifierBUF) || (numbytes == 47 && myIdentifier == myIdentifierBUF) || (numbytes == 48 && myIdentifier == myIdentifierBUF))
     {
       int code = twoBytesToInt(buf, 14, 15);
       if (code == 10)
@@ -252,8 +258,12 @@ int listener(char *interfaceName, int myIdentifier)
         char macDestinationFromBuf[MAC_STRING_SIZE];
         obtenerDireccionMAC(buf, macDestinationFromBuf);
         printf("QUIEREN SABER MI MAC\nENVIARE MI MAC A: %s\n\n", macDestinationFromBuf);
+        int identifierDestination = twoBytesToInt(buf, 18, 19);
+        char identifierDestinationString[2];
+        sprintf(identifierDestinationString, "%d", identifierDestination);
+        printf("ENNVIAR A: %s\n", identifierDestinationString);
         sleep(1);
-        transmitter(interfaceName, macDestinationFromBuf, "20", "88", myIdentifier);
+        transmitter(interfaceName, macDestinationFromBuf, "20", identifierDestinationString, myIdentifier);
       }
       else if (code == 20)
       {

@@ -4,15 +4,13 @@
 
 int main(int argc, char *argv[])
 {
-  if (argc != 2)
+  if (argc != 3)
   {
     printf("Error en argumentos.\n\n");
-    printf("reth INTERFACE-ENTRADA\n\n");
+    printf("reth INTERFACE-ENTRADA MY-IDENTIFIER\n\n");
     exit(1);
   }
-  int myIdentifier = 99;
-  char identifierString[2];
-  sprintf(identifierString, "%d", myIdentifier);
+  int myIdentifier = atoi(argv[2]);
   listener(argv[1], myIdentifier);
 
   return (0);

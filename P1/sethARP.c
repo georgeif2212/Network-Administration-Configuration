@@ -15,15 +15,13 @@ estos son datos
 
 int main(int argc, char *argv[])
 {
-  if (argc != 5)
+  if (argc != 6)
   {
     printf("Error en argumentos.\n\n");
-    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) code (Formato xx) IDENTIFIER-DESTINO (Formato xx)\n\n");
+    printf("seth INTERFACE-SALIDA MAC-DESTINO (Formato XXXXXXXXXXXX) code (Formato xx) IDENTIFIER-DESTINO MY-IDENTIFIER(Formato xx)\n\n");
     exit(1);
   }
-  int myIdentifier = 88;
-  char myIdentifierString[2];
-  sprintf(myIdentifierString, "%d", myIdentifier);
+  int myIdentifier = atoi(argv[5]);
   transmitter(argv[1], argv[2], argv[3], argv[4], myIdentifier);
 
   return 0;
