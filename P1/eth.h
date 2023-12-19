@@ -126,7 +126,7 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   if (strcmp(code, "10") == 0)
   {
     printf("Paquete ARP para saber MAC del nodo con identificador: %s\n", identifierDestino);
-    char Cadena[] = "Quiero saber tu MAC";
+    char Cadena[] = "Quiero saber tu MAC - LO DEMAS ES BASURA PARA RELLENAR EL PAQUETE A 64 BYTES";
     eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(myIdentifierString) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
@@ -143,7 +143,7 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   else if (strcmp(code, "20") == 0)
   {
     printf("Paquete ARP para para decirle al nodo con MAC:%s, mi MAC\n", macStringDestino);
-    char Cadena[] = "Aquí va mi MAC";
+    char Cadena[] = "Aquí va mi MAC - LO DEMAS ES BASURA PARA RELLENAR EL PAQUETE A 64 BYTES";
     eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(myIdentifierString) + strlen(miMACString) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
@@ -160,7 +160,7 @@ int transmitter(char *interfaceName, char *macStringDestino, char *code, char *i
   else
   {
     printf("Este es un mensaje cualquiera\n");
-    char Cadena[] = "Este es un mensaje cualquiera";
+    char Cadena[] = "Este es un mensaje cualquiera - LO DEMAS ES BASURA PARA RELLENAR EL PAQUETE A 64 BYTES";
     eh->ether_type = htons(strlen(code) + strlen(identifierDestino) + strlen(Cadena));
     tx_len += sizeof(struct ether_header);
     strcpy(sendbuf + tx_len, code);
@@ -250,7 +250,7 @@ int listener(char *interfaceName, int myIdentifier)
     /*Estamos escuchando por todas las interfaces del host*/
     numbytes = recvfrom(sockfd, buf, 65536, 0, &saddr, (socklen_t *)&saddr_size);
     int myIdentifierBUF = twoBytesToInt(buf, 16, 17);
-    if ((numbytes == 51 && myIdentifier == myIdentifierBUF) || (numbytes == 47 && myIdentifier == myIdentifierBUF) || (numbytes == 48 && myIdentifier == myIdentifierBUF))
+    if ((numbytes == 108 && myIdentifier == myIdentifierBUF) || (numbytes == 104 && myIdentifier == myIdentifierBUF) || (numbytes == 48 && myIdentifier == myIdentifierBUF))
     {
       int code = twoBytesToInt(buf, 14, 15);
       if (code == 10)
