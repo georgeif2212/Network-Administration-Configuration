@@ -253,14 +253,15 @@ int listener(char *interfaceName, int myIdentifier)
     if ((numbytes == 108 && myIdentifier == myIdentifierBUF) || (numbytes == 104 && myIdentifier == myIdentifierBUF) || (numbytes == 48 && myIdentifier == myIdentifierBUF))
     {
       int code = twoBytesToInt(buf, 14, 15);
+      int identifierDestination = twoBytesToInt(buf, 18, 19);
+      char identifierDestinationString[2];
+      sprintf(identifierDestinationString, "%d", identifierDestination);
       if (code == 10)
       {
         char macDestinationFromBuf[MAC_STRING_SIZE];
         obtenerDireccionMAC(buf, macDestinationFromBuf);
         printf("QUIEREN SABER MI MAC\nENVIARE MI MAC A: %s\n\n", macDestinationFromBuf);
-        int identifierDestination = twoBytesToInt(buf, 18, 19);
-        char identifierDestinationString[2];
-        sprintf(identifierDestinationString, "%d", identifierDestination);
+
         printf("ENNVIAR A: %s\n", identifierDestinationString);
         sleep(1);
         transmitter(interfaceName, macDestinationFromBuf, "20", identifierDestinationString, myIdentifier);
@@ -271,6 +272,8 @@ int listener(char *interfaceName, int myIdentifier)
         char macDestinationFromBuf[MAC_STRING_SIZE];
         obtenerDireccionMAC(buf, macDestinationFromBuf);
         printf("YA SÉ TU MAC, ES: %s\n", macDestinationFromBuf);
+        printf("Ahí te va un mensaje cualquiera para corroborar tu MAC\n");
+        transmitter(interfaceName, macDestinationFromBuf, "30", identifierDestinationString, myIdentifier);
         flag = 0;
       }
       else
